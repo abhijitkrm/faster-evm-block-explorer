@@ -44,7 +44,9 @@ export function WSProvider({ children }) {
 
             case 'init': {
               setStats(msg.data.stats);
-              setBlocks(msg.data.blocks ?? []);
+              const initBlocks = (msg.data.blocks ?? [])
+                .slice().sort((a, b) => Number(b.number) - Number(a.number));
+              setBlocks(initBlocks);
               setTxs(msg.data.txs ?? []);
               break;
             }
@@ -57,7 +59,14 @@ export function WSProvider({ children }) {
             case 'block': {
               // tag the arriving block with a client-side timestamp
               const blk = { ...msg.data, _addedAt: Date.now() };
-              setBlocks((prev) => [blk, ...prev].slice(0, MAX_BLOCKS));
+              setBlocks((prev) => {
+                // deduplicate then sort descending by block number
+                const map = new Map(prev.map(b => [b.hash, b]));
+                map.set(blk.hash, blk);
+                return [...map.values()]
+                  .sort((a, b) => Number(b.number) - Number(a.number))
+                  .slice(0, MAX_BLOCKS);
+              });
 
               // mark hash as "new" for the flash animation, auto-clear after 2 s
               setNewHashes((prev) => {
