@@ -1,408 +1,219 @@
-# Faster - EVM Block Explorer 
+# Faster — Real-Time EVM Block Explorer
 
-A high-performance, real-time EVM block explorer built with Docker, designed for low-latency transaction streaming on custom EVM chains.
+A high-performance, real-time EVM block explorer built with Docker. Designed for high-throughput chains with sub-second block times — streams blocks and transactions live to the browser via WebSocket with no page refresh required.
+
+> Works with any EVM-compatible chain (Ethereum, L2s, custom EVM L1s). Tested at 400ms block times with 50+ transactions per block.
 
 ## Features
 
-✅ **Real-Time Block & Transaction Indexing**
-- WebSocket support for live updates
-- Sub-1000ms transaction latency
-- Automatic block polling with RPC fallback
+- **Real-time streaming** — blocks and transactions pushed to the UI as they land on chain
+- **Parallel block ingestion** — fetches 20 blocks simultaneously using raw JSON-RPC (`eth_getBlockByNumber` + `eth_getBlockReceipts` in one round trip per block)
+- **Full data pipeline** — block listener → Redis Streams → indexer → PostgreSQL → API → WebSocket → frontend
+- **Address activity tracking** — transaction counts and history per address
+- **Instantaneous TPS** — calculated from latest block tx count ÷ recent avg block time
+- **Terminal dark UI** — built with React + Vite, zero external UI dependencies
+- **Resumable indexing** — listener saves checkpoint to Redis, picks up where it left off on restart
+- **Health endpoints** on every service
 
-✅ **Comprehensive Data Tracking**
-- Full block and transaction data
-- Address activity and statistics
-- Transaction logs and events
-- Custom EVM L1 blockchain support
+## Prerequisites
 
-✅ **Production-Ready Architecture**
-- Modular microservices (listener, indexer, API)
-- PostgreSQL persistent storage
-- Redis message queue and caching
-- WebSocket real-time streaming
-- Health checks and graceful shutdown
-
-✅ **Modern Web Interface**
-- React-based responsive UI
-- Real-time data updates
-- Block and transaction explorer
-- Address activity tracking
-- Dark mode theme
-
-✅ **Monitoring & Observability**
-- Prometheus metrics
-- Service health endpoints
-- Comprehensive logging (Pino)
-- Performance statistics
+- [Docker](https://docs.docker.com/get-docker/) 20+
+- [Docker Compose](https://docs.docker.com/compose/install/) v2+
+- An EVM-compatible RPC endpoint (HTTP JSON-RPC)
 
 ## Quick Start
 
-### 1. Clone/Navigate to Project
 ```bash
-cd /Users/sysadmin/Desktop/explorer/realtime
-```
+# 1. Clone the repo
+git clone https://github.com/your-username/faster-explorer.git
+cd faster-explorer
 
-### 2. Start Services
-```bash
+# 2. Configure your chain
+cp .env.example .env
+# Edit .env — set RPC_URL to your chain's HTTP RPC endpoint
+
+# 3. Start everything
 docker-compose up -d
+
+# 4. Open the explorer
+open http://localhost:3001
 ```
 
-### 3. Access Application
-- **Frontend**: http://localhost:3001
-- **API**: http://localhost:3000
-- **Prometheus**: http://localhost:9090
+## Configuration
 
-### 4. Verify Services
-```bash
-docker-compose ps
-docker-compose logs -f
+Copy `.env.example` to `.env` and set the following:
+
+```env
+# Your chain's HTTP JSON-RPC endpoint (required)
+RPC_URL=http://your-rpc-node:8545/
+
+# Database
+DB_USER=explorer
+DB_PASSWORD=change_me_in_production
+DB_NAME=explorer
+
+# API base URL (used by the frontend)
+VITE_API_URL=http://localhost:3000
 ```
+
+> **Note:** `eth_getBlockReceipts` must be supported by your RPC node for receipt data (gas used, status, logs). Most modern EVM nodes support it. If not, receipts will be `null` but blocks and transactions will still index.
 
 ## Project Structure
 
 ```
-realtime/
 ├── services/
-│   ├── block-listener/     # Real-time block/tx listener
-│   ├── indexer/            # Indexes data into database
-│   ├── api/                # REST & WebSocket API
-│   └── frontend/           # React web interface
+│   ├── block-listener/     # Polls RPC, writes blocks + txs to Redis Streams
+│   ├── indexer/            # Reads Redis Streams, writes to PostgreSQL
+│   ├── api/                # REST + WebSocket API
+│   └── frontend/           # React 18 + Vite UI
 ├── database/
-│   └── init-db.sql         # Database schema
-├── config/
-│   └── prometheus.yml      # Monitoring config
-├── docs/
-│   ├── DEPLOYMENT.md       # Deployment guide
-│   ├── API.md              # API documentation
-│   └── ARCHITECTURE_PLAN.md # Architecture details
-├── docker-compose.yml      # Service orchestration
-├── .env                    # Environment variables
-└── ARCHITECTURE_PLAN.md    # Initial planning document
+│   └── init-db.sql         # Schema (auto-applied on first start)
+├── docker-compose.yml
+├── .env.example
+└── .env                    # Your local config (git-ignored)
 ```
 
 ## Technology Stack
 
 | Component | Technology |
 |-----------|-----------|
-| **Blockchain Listener** | Node.js + ethers.js + WebSocket |
-| **Message Queue** | Redis Streams |
-| **Database** | PostgreSQL 15 |
-| **Cache** | Redis 7 |
-| **API** | Express.js + WebSocket |
-| **Frontend** | React 18 + Vite |
-| **Monitoring** | Prometheus |
-| **Container** | Docker + Docker Compose |
+| Block Listener | Node.js, raw JSON-RPC via `fetch` |
+| Message Queue | Redis Streams |
+| Database | PostgreSQL 15 |
+| API | Express.js + WebSocket |
+| Frontend | React 18 + Vite |
+| Container | Docker + Docker Compose |
 
-## Configuration
+## API Reference
 
-### Environment Variables (`.env`)
-
-```env
-# RPC Endpoints
-RPC_URL=http://34.220.79.132:8545/
-WS_URL=ws://34.220.79.132:8546
-
-# Database
-DB_USER=explorer
-DB_PASSWORD=explorer_secure_password_2026
-DB_NAME=explorer
-
-# API
-VITE_API_URL=http://localhost:3000
-
-# Performance
-INDEXER_BATCH_SIZE=100
-BLOCK_LISTENER_BATCH_SIZE=50
-```
-
-## API Overview
-
-### REST Endpoints
+### REST
 
 ```
-GET  /api/blocks              # Latest blocks
-GET  /api/blocks/:number      # Block details
-GET  /api/blocks/range/:start/:end  # Block range
-GET  /api/transactions        # Latest transactions
-GET  /api/transactions/:hash  # Transaction details
-GET  /api/addresses           # Top addresses
-GET  /api/addresses/:address  # Address activity
-GET  /stats                   # Global statistics
-GET  /health                  # Health check
+GET  /api/blocks                      # Latest blocks
+GET  /api/blocks/:number              # Block by number
+GET  /api/transactions                # Latest transactions
+GET  /api/transactions/:hash          # Transaction by hash
+GET  /api/addresses/:address          # Address activity
+GET  /stats                           # Chain stats (TPS, block time, totals)
+GET  /health                          # Health check
 ```
 
-### WebSocket Events
+### WebSocket
+
+Connect to `ws://localhost:3000` — the server pushes events as they are indexed:
 
 ```javascript
-// Subscribe to real-time updates
-ws.send(JSON.stringify({ type: 'subscribe', stream: 'blocks' }));
-ws.send(JSON.stringify({ type: 'subscribe', stream: 'transactions' }));
+const ws = new WebSocket('ws://localhost:3000');
 
-// Receive updates
-ws.onmessage = (event) => {
-  const { type, data } = JSON.parse(event.data);
-  // type: 'block' or 'transaction'
+ws.onmessage = ({ data }) => {
+  const msg = JSON.parse(data);
+  // msg.type === 'block'  → msg.data = block object
+  // msg.type === 'tx'     → msg.data = transaction object
+  // msg.type === 'stats'  → msg.data = { tps, avg_block_time, ... }
 };
 ```
 
-## Services
+## Services & Ports
 
-### Block Listener
-- Polls RPC for new blocks
-- Subscribes to transactions via WebSocket
-- Publishes to Redis Streams
-- **Health**: http://localhost:3100/health
-
-### Indexer
-- Consumes Redis Streams
-- Writes to PostgreSQL database
-- Maintains address activity index
-- **Health**: http://localhost:3101/health
-
-### API Server
-- Serves REST endpoints
-- WebSocket streaming
-- Real-time updates
-- **Health**: http://localhost:3000/health
-
-### Frontend
-- React web interface
-- Real-time block/transaction feed
-- Address search and details
-- Responsive design
-
-### Database (PostgreSQL)
-- Persistent block/transaction storage
-- Indexed for fast queries
-- Time-series optimized
-- **Port**: 5432
-
-### Cache (Redis)
-- Message queue (Streams)
-- Hot data caching
-- Pub/Sub for real-time updates
-- **Port**: 6379
-
-### Monitoring (Prometheus)
-- Metrics collection
-- Service health visibility
-- **Port**: 9090
+| Service | Port | Purpose |
+|---------|------|---------|
+| Frontend | 3001 | Web UI |
+| API | 3000 | REST + WebSocket |
+| Block Listener | 3100 | Health only |
+| Indexer | 3101 | Health only |
+| PostgreSQL | 5432 | Database |
+| Redis | 6379 | Streams + cache |
 
 ## Common Commands
 
 ```bash
-# Start all services
-docker-compose up -d
+# View logs for a specific service
+docker-compose logs -f block-listener
 
-# Stop all services
-docker-compose down
+# Restart a service after editing its source
+docker-compose up -d --build block-listener
 
-# View logs
-docker-compose logs -f [service]
-
-# Check service status
-docker-compose ps
-
-# Restart a service
-docker-compose restart [service]
-
-# Enter database shell
+# Open a database shell
 docker exec -it explorer-postgres psql -U explorer -d explorer
 
-# Check Redis
-docker exec -it explorer-redis redis-cli
+# Check Redis stream lengths
+docker exec -it explorer-redis redis-cli XLEN blocks:stream
+docker exec -it explorer-redis redis-cli XLEN transactions:stream
 
-# View network traffic
-docker-compose logs block-listener
+# Reset everything (deletes all indexed data)
+docker-compose down -v && docker-compose up -d
 ```
 
-## Performance Tuning
+## How It Works
 
-### Block Listener
-- Adjust polling interval in `services/block-listener/src/index.js`
-- Increase `BLOCK_LISTENER_BATCH_SIZE` for faster throughput
-
-### Indexer
-- Increase `INDEXER_BATCH_SIZE` (default: 100)
-- Tune database connection pool size
-
-### Database
-```sql
--- Check slow queries
-SELECT * FROM pg_stat_statements ORDER BY mean_exec_time DESC;
-
--- Vacuum and analyze
-VACUUM ANALYZE;
-
--- Check index usage
-SELECT schemaname, tablename, indexname FROM pg_indexes;
+```
+Chain RPC
+   │
+   ▼
+block-listener  ──── eth_getBlockByNumber (full txs) ──┐
+                └─── eth_getBlockReceipts              ─┤
+                                                        ▼
+                                                  Redis Streams
+                                                  (blocks:stream,
+                                                   transactions:stream)
+                                                        │
+                                                        ▼
+                                                     indexer
+                                                        │
+                                                        ▼
+                                                   PostgreSQL
+                                                        │
+                                                        ▼
+                                                   API server
+                                                   ├── REST
+                                                   └── WebSocket ──→ Browser
 ```
 
-### API
-- Enable gzip compression (reverse proxy)
-- Add caching headers
-- Implement request deduplication on client
-
-## Monitoring
-
-### Health Checks
-```bash
-curl http://localhost:3100/health  # Block Listener
-curl http://localhost:3101/health  # Indexer
-curl http://localhost:3000/health  # API
-```
-
-### Prometheus Query Examples
-```
-# Service uptime
-up{job="api"}
-
-# Request rate
-rate(http_requests_total[5m])
-
-# Indexed transactions
-increase(transactions_processed_total[1m])
-```
+The block listener persists its last processed block number in Redis (`listener:lastBlock`), so it automatically resumes from where it stopped on restart — no blocks are missed.
 
 ## Troubleshooting
 
-### Services won't start
+**No blocks appearing**
+- Verify your RPC endpoint is reachable: `curl -X POST http://your-rpc:8545/ -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' -H 'Content-Type: application/json'`
+- Check listener logs: `docker-compose logs block-listener`
+
+**Transactions not indexing**
+- Check indexer logs: `docker-compose logs indexer`
+- Verify `transactions:stream` is growing: `docker exec explorer-redis redis-cli XLEN transactions:stream`
+
+**Services won't start**
 ```bash
-# Check logs
-docker-compose logs
-
-# Verify docker and docker-compose
-docker --version
-docker-compose --version
-
-# Check disk space
-df -h
+docker-compose logs        # check all logs
+docker --version           # requires 20+
+docker compose version     # requires v2+
 ```
 
-### No data appearing
-1. Verify RPC/WS endpoints are accessible
-2. Check block-listener logs: `docker-compose logs block-listener`
-3. Verify Redis: `docker exec explorer-redis redis-cli PING`
-4. Check database: `docker exec explorer-postgres psql -U explorer -d explorer -c "SELECT COUNT(*) FROM blocks;"`
-
-### High CPU/Memory Usage
-- Reduce batch sizes in `.env`
-- Check for slow database queries
-- Limit concurrent WebSocket connections (add rate limiting)
-
-### Database Full
+**Reset the listener checkpoint** (re-index from a specific block)
 ```bash
-# Check disk usage
-docker exec explorer-postgres du -sh /var/lib/postgresql/data
-
-# Cleanup old data
-docker exec explorer-postgres psql -U explorer -d explorer -c "DELETE FROM logs WHERE created_at < NOW() - INTERVAL '30 days';"
+docker exec explorer-redis redis-cli SET listener:lastBlock 1234567
+docker-compose restart block-listener
 ```
 
-## Security
-
-⚠️ **Current setup is development/testing only!**
-
-For production deployment:
-1. Change default passwords in `.env`
-2. Use secrets management (Docker Secrets, HashiCorp Vault)
-3. Enable SSL/TLS with reverse proxy (nginx)
-4. Implement authentication (JWT, API keys)
-5. Add rate limiting
-6. Configure firewall rules
-7. Enable database backups
-8. Monitor security logs
-
-## Database Backup
+## Database Backup & Restore
 
 ```bash
-# Backup PostgreSQL
+# Backup
 docker exec explorer-postgres pg_dump -U explorer explorer > backup.sql
 
-# Restore PostgreSQL
+# Restore
 docker exec -i explorer-postgres psql -U explorer explorer < backup.sql
 ```
 
-## Development
+## Security Notes
 
-### Modify Block Listener
-```bash
-# Edit source
-vim services/block-listener/src/index.js
+⚠️ The default configuration is for local development only.
 
-# Rebuild and restart
-docker-compose up -d --build block-listener
-```
-
-### Update Database Schema
-```bash
-# Add migration
-vim database/migrations/01_initial.sql
-
-# Reapply schema
-docker-compose down -v
-docker-compose up -d postgres
-```
-
-### Frontend Development
-```bash
-# Install dependencies locally
-cd services/frontend
-npm install
-
-# Run dev server
-npm run dev
-
-# Build for production
-npm run build
-```
-
-## Documentation
-
-- [Deployment Guide](docs/DEPLOYMENT.md) - Detailed setup and configuration
-- [API Reference](docs/API.md) - Complete API documentation
-- [Architecture Plan](ARCHITECTURE_PLAN.md) - System design and decisions
-
-## Performance Targets
-
-- **Block Indexing**: < 500ms from chain
-- **Transaction Streaming**: < 1000ms latency
-- **API Response**: < 100ms (cached), < 1000ms (fresh)
-- **WebSocket Updates**: Real-time (< 500ms)
-- **Throughput**: 1000+ tx/second indexing
-- **Concurrent Connections**: 100+ WebSocket clients
-
-## Network Configuration
-
-### Internal Port Mapping
-- Block Listener: 3100 (health)
-- Indexer: 3101 (health)
-- API: 3000 (REST + WS)
-- Frontend: 3001 (web)
-- PostgreSQL: 5432
-- Redis: 6379
-- Prometheus: 9090
-
-### External Access
-- Frontend: http://localhost:3001
-- API: http://localhost:3000
-- Prometheus: http://localhost:9090
+For production:
+- Set a strong `DB_PASSWORD` in `.env`
+- Place the API behind a reverse proxy (nginx/Caddy) with TLS
+- Restrict Redis and PostgreSQL ports to internal networks only
+- Add authentication to the API if exposing publicly
 
 ## License
 
 MIT
-
-## Support
-
-For issues or questions:
-1. Check logs: `docker-compose logs [service]`
-2. Review documentation in `docs/`
-3. Verify `.env` configuration
-4. Check RPC/WS endpoint availability
-
----
-
-**Created**: March 6, 2026  
-**Blockchain**: Custom EVM L1  
-**RPC**: http://34.220.79.132:8545/  
-**WebSocket**: ws://34.220.79.132:8546/
