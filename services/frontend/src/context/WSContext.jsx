@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 
 const WS_URL = (import.meta.env.VITE_API_URL || 'http://localhost:4000').replace(/^http/, 'ws');
-const MAX_ITEMS = 20;
+const MAX_BLOCKS = 50;
+const MAX_TXS    = 20;
 
 const WSCtx = createContext(null);
 
@@ -56,7 +57,7 @@ export function WSProvider({ children }) {
             case 'block': {
               // tag the arriving block with a client-side timestamp
               const blk = { ...msg.data, _addedAt: Date.now() };
-              setBlocks((prev) => [blk, ...prev].slice(0, MAX_ITEMS));
+              setBlocks((prev) => [blk, ...prev].slice(0, MAX_BLOCKS));
 
               // mark hash as "new" for the flash animation, auto-clear after 2 s
               setNewHashes((prev) => {
@@ -76,7 +77,7 @@ export function WSProvider({ children }) {
 
             case 'tx': {
               const tx = { ...msg.data, _addedAt: Date.now() };
-              setTxs((prev) => [tx, ...prev].slice(0, MAX_ITEMS));
+              setTxs((prev) => [tx, ...prev].slice(0, MAX_TXS));
               break;
             }
 

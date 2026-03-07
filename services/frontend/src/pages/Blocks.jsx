@@ -1,20 +1,15 @@
 import { useEffect, useState } from 'react';
 import BlockList from '../components/BlockList';
-
-const API = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+import { useWS } from '../context/WSContext';
 
 export default function Blocks() {
-  const [blocks, setBlocks] = useState([]);
-
+  const { blocks, newHashes } = useWS();
+  // tick every second so ages stay live
+  const [, setTick] = useState(0);
   useEffect(() => {
-    load();
-    const iv = setInterval(load, 5000);
+    const iv = setInterval(() => setTick((t) => t + 1), 1000);
     return () => clearInterval(iv);
   }, []);
-
-  const load = async () => {
-    try { setBlocks(await (await fetch(API + '/api/blocks?limit=50')).json()); } catch {}
-  };
 
   return (
     <div>
@@ -23,7 +18,7 @@ export default function Blocks() {
         <span className="page-count">{blocks.length} shown</span>
       </div>
       <div className="panel">
-        <BlockList blocks={blocks} />
+        <BlockList blocks={blocks} newHashes={newHashes} />
       </div>
     </div>
   );

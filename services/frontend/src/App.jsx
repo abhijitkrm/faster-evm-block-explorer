@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import Home from './pages/Home';
 import Blocks from './pages/Blocks';
@@ -10,8 +11,15 @@ const fmtNum = (n) => (n == null ? '—' : Number(n).toLocaleString());
 export default function App() {
   const { wsOk, stats } = useWS();
   const location = useLocation();
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme === 'light' ? 'light' : '';
+    localStorage.setItem('theme', theme);
+  }, [theme]);
 
   const va = (p) => location.pathname === p ? ' active' : '';
+  const toggleTheme = () => setTheme((t) => t === 'dark' ? 'light' : 'dark');
 
   return (
     <div className="app-wrapper">
@@ -32,6 +40,15 @@ export default function App() {
               <Link to="/"             className={'nav-link' + va('/')}>Home</Link>
               <Link to="/blocks"       className={'nav-link' + va('/blocks')}>Blocks</Link>
               <Link to="/transactions" className={'nav-link' + va('/transactions')}>Txns</Link>
+              <button
+                onClick={toggleTheme}
+                title="Toggle light / dark"
+                style={{
+                  background:'none', border:'1px solid var(--border-hi)', borderRadius:6,
+                  color:'var(--text-2)', cursor:'pointer', fontSize:13, lineHeight:1,
+                  padding:'4px 9px', marginLeft:6, transition:'all .15s'
+                }}
+              >{theme === 'dark' ? '☀' : '☾'}</button>
             </nav>
           </div>
         </div>

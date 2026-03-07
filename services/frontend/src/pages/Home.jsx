@@ -54,7 +54,7 @@ export default function Home() {
                       </Link>
                     </td>
                     <td style={{textAlign:'right',color: b.transactions_count > 0 ? 'var(--green)' : 'var(--text-3)'}}>{b.transactions_count}</td>
-                    <td style={{textAlign:'right',color:'var(--text-3)'}}>{timeAgo(b.timestamp, b._addedAt)}</td>
+                    <td style={{textAlign:'right',color:'var(--text-3)'}}><span style={{display:'inline-block',minWidth:'74px',textAlign:'right'}}>{timeAgo(b.timestamp, b._addedAt)}</span></td>
                   </tr>
                 ))}
               </tbody>
