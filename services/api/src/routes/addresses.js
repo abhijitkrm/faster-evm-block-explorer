@@ -1,5 +1,21 @@
 import express from 'express';
 
+const RPC_URL = process.env.RPC_URL;
+
+async function getBalance(address) {
+  try {
+    const res = await fetch(RPC_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getBalance', params: [address, 'latest'] }),
+    });
+    const { result } = await res.json();
+    return result ? BigInt(result).toString() : '0';
+  } catch {
+    return '0';
+  }
+}
+
 export default function addressesRouter(dbPool) {
   const router = express.Router();
 
@@ -20,36 +36,67 @@ export default function addressesRouter(dbPool) {
     }
   });
 
-  // Get address details
+  // Get address details + live balance + transaction history
   router.get('/:address', async (req, res, next) => {
     try {
-      const { address } = req.params;
+      const address = req.params.address.toLowerCase();
+      const page    = Math.max(1, parseInt(req.query.page)  || 1);
+      const limit   = Math.min(50, parseInt(req.query.limit) || 25);
+      const offset  = (page - 1) * limit;
 
-      // Get address info
-      const addrResult = await dbPool.query(`
-        SELECT address, transaction_count, first_seen, last_seen, is_contract, balance
-        FROM addresses
-        WHERE address = $1
-      `, [address.toLowerCase()]);
+      const [addrResult, txResult, countResult, balance] = await Promise.all([
+        dbPool.query(`
+          SELECT address, transaction_count, first_seen, last_seen, is_contract
+          FROM addresses
+          WHERE address = $1
+        `, [address]),
+
+        dbPool.query(`
+          SELECT
+            t.hash, t.block_number, t.block_timestamp,
+            t.from_address, t.to_address,
+            t.value, t.gas, t.gas_price, t.gas_used,
+            t.status, t.nonce,
+            t.input_data
+          FROM transactions t
+          WHERE t.from_address = $1 OR t.to_address = $1
+          ORDER BY t.block_number DESC, t.nonce DESC
+          LIMIT $2 OFFSET $3
+        `, [address, limit, offset]),
+
+        dbPool.query(`
+          SELECT COUNT(*)::int AS total
+          FROM transactions
+          WHERE from_address = $1 OR to_address = $1
+        `, [address]),
+
+        getBalance(address),
+      ]);
 
       if (addrResult.rows.length === 0) {
-        return res.status(404).json({ error: 'Address not found' });
+        // Address not found in DB but may still have balance — show what we have
+        return res.json({
+          address,
+          transaction_count: 0,
+          first_seen: null,
+          last_seen: null,
+          is_contract: false,
+          balance,
+          transactions: txResult.rows,
+          total_transactions: countResult.rows[0].total,
+          page,
+          limit,
+        });
       }
 
-      const addressInfo = addrResult.rows[0];
-
-      // Get recent transactions
-      const txResult = await dbPool.query(`
-        SELECT hash, block_number, from_address, to_address, value, status, created_at
-        FROM transactions
-        WHERE from_address = $1 OR to_address = $1
-        ORDER BY created_at DESC
-        LIMIT 50
-      `, [address.toLowerCase()]);
-
-      addressInfo.recentTransactions = txResult.rows;
-
-      res.json(addressInfo);
+      res.json({
+        ...addrResult.rows[0],
+        balance,
+        transactions: txResult.rows,
+        total_transactions: countResult.rows[0].total,
+        page,
+        limit,
+      });
     } catch (error) {
       next(error);
     }
@@ -78,3 +125,4 @@ export default function addressesRouter(dbPool) {
 
   return router;
 }
+
