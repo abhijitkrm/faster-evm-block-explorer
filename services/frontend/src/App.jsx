@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
+import SearchBar from './components/SearchBar';
 import Home from './pages/Home';
 import Blocks from './pages/Blocks';
 import BlockDetail from './pages/BlockDetail';
@@ -104,7 +105,7 @@ export default function App() {
       <header className="site-header">
         <div className="container">
           <div className="header-inner">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
               <Link to="/" className="logo">
                 <span className="logo-hex">&#x2B21;</span>
                 EVM Explorer
@@ -114,6 +115,7 @@ export default function App() {
                 {wsOk ? 'LIVE' : 'CONNECTING'}
               </span>
             </div>
+            <SearchBar />
             <nav className="nav">
               <Link to="/"             className={'nav-link' + va('/')}>Home</Link>
               <Link to="/blocks"       className={'nav-link' + va('/blocks')}>Blocks</Link>
