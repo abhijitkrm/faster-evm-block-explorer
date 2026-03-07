@@ -1,4 +1,4 @@
-# EVM Block Explorer - README
+# Faster - EVM Block Explorer 
 
 A high-performance, real-time EVM block explorer built with Docker, designed for low-latency transaction streaming on custom EVM chains.
 
