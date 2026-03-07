@@ -4,6 +4,8 @@ A high-performance, real-time EVM block explorer built with Docker. Designed for
 
 > Works with any EVM-compatible chain (Ethereum, L2s, custom EVM L1s). Tested at 400ms block times with 50+ transactions per block.
 
+![Faster EVM Block Explorer](screenshot.png)
+
 ## Features
 
 - **Real-time streaming** — blocks and transactions pushed to the UI as they land on chain
