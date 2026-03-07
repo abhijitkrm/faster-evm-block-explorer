@@ -1,0 +1,169 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: explorer-postgres
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./database/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - explorer-network
+
+  # Redis Cache & Message Queue
+  redis:
+    image: redis:7-alpine
+    container_name: explorer-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - explorer-network
+
+  # Block Listener Service
+  block-listener:
+    build:
+      context: ./services/block-listener
+      dockerfile: Dockerfile
+    container_name: explorer-block-listener
+    environment:
+      RPC_URL: ${RPC_URL}
+      WS_URL: ${WS_URL}
+      REDIS_URL: redis://redis:6379
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NODE_ENV: ${NODE_ENV:-production}
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3100/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - explorer-network
+
+  # Indexer Service
+  indexer:
+    build:
+      context: ./services/indexer
+      dockerfile: Dockerfile
+    container_name: explorer-indexer
+    environment:
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      BATCH_SIZE: ${INDEXER_BATCH_SIZE:-100}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NODE_ENV: ${NODE_ENV:-production}
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3101/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - explorer-network
+
+  # API Service
+  api:
+    build:
+      context: ./services/api
+      dockerfile: Dockerfile
+    container_name: explorer-api
+    ports:
+      - "4000:3000"
+    environment:
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      REDIS_URL: redis://redis:6379
+      PORT: 3000
+      NODE_ENV: ${NODE_ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - explorer-network
+
+  # Frontend Application
+  frontend:
+    build:
+      context: ./services/frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:4000}
+    container_name: explorer-frontend
+    ports:
+      - "4001:5173"
+    depends_on:
+      - api
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+    restart: unless-stopped
+    networks:
+      - explorer-network
+
+  # Prometheus Monitoring (Minimal)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: explorer-prometheus
+    ports:
+      - "4090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=7d'
+    depends_on:
+      - api
+      - block-listener
+      - indexer
+    restart: unless-stopped
+    networks:
+      - explorer-network
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  prometheus-data:
+    driver: local
+
+networks:
+  explorer-network:
+    driver: bridge

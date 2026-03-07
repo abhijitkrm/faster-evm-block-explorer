@@ -1,0 +1,34 @@
+global:
+  scrape_interval: 15s
+  raise_for: 10s
+  external_labels:
+    monitor: 'evm-explorer'
+
+scrape_configs:
+  - job_name: 'block-listener'
+    static_configs:
+      - targets: ['block-listener:3100']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  - job_name: 'indexer'
+    static_configs:
+      - targets: ['indexer:3101']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  - job_name: 'api'
+    static_configs:
+      - targets: ['api:3000']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    scrape_interval: 30s
+
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:5432']
+    scrape_interval: 30s
