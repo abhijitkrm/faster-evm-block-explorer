@@ -19,14 +19,18 @@ export default function blocksRouter(dbPool) {
     }
   });
 
-  // Get block by number
+  // Get block by number or hash
   router.get('/:number', async (req, res, next) => {
     try {
-      const { number } = req.params;
-      const result = await dbPool.query(`
-        SELECT * FROM blocks
-        WHERE number = $1 OR hash = $1
-      `, [isNaN(number) ? number : parseInt(number)]);
+      const param = req.params.number;
+      const isHash = param.startsWith('0x');
+
+      const result = await dbPool.query(
+        isHash
+          ? `SELECT * FROM blocks WHERE hash = $1`
+          : `SELECT * FROM blocks WHERE number = $1`,
+        [isHash ? param : parseInt(param)]
+      );
 
       if (result.rows.length === 0) {
         return res.status(404).json({ error: 'Block not found' });
@@ -36,10 +40,11 @@ export default function blocksRouter(dbPool) {
 
       // Get transactions in this block
       const txResult = await dbPool.query(`
-        SELECT hash, from_address, to_address, value, status
+        SELECT hash, from_address, to_address, value, gas, gas_price,
+               gas_used, status, nonce, input_data, block_timestamp
         FROM transactions
         WHERE block_number = $1
-        ORDER BY transaction_index ASC
+        ORDER BY nonce ASC
       `, [block.number]);
 
       block.transactions = txResult.rows;

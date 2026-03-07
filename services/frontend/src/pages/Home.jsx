@@ -47,7 +47,7 @@ export default function Home() {
               <tbody>
                 {blocks.map(b => (
                   <tr key={b.hash} className={newHashes.has(b.hash) ? 'is-new' : ''}>
-                    <td><Link to="/blocks" className="num-link">#{Number(b.number).toLocaleString()}</Link></td>
+                    <td><Link to={`/blocks/${b.number}`} className="num-link">#{Number(b.number).toLocaleString()}</Link></td>
                     <td>
                       <Link to={'/address/' + b.miner} className="addr-link">
                         <span className="addr-cell">{shortAddr(b.miner)}</span>
@@ -81,8 +81,10 @@ export default function Home() {
               <tbody>
                 {txs.map(tx => (
                   <tr key={tx.hash}>
-                    <td style={{color:'var(--text-2)',fontSize:11}}>
-                      <span className="addr-cell">{shortHash(tx.hash)}</span>
+                    <td style={{fontSize:11}}>
+                      <Link to={`/tx/${tx.hash}`} className="hash-link">
+                        <span className="addr-cell">{shortHash(tx.hash)}</span>
+                      </Link>
                     </td>
                     <td style={{fontSize:11}}>
                       <Link to={'/address/' + tx.from_address} className="addr-link">

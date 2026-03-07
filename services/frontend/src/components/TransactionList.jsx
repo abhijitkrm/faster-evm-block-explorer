@@ -16,8 +16,8 @@ export default function TransactionList({ transactions }) {
       <tbody>
         {transactions.map(tx => (
           <tr key={tx.hash}>
-            <td style={{color:'var(--text-2)',fontSize:11}}><span className="hash-cell">{shortHash(tx.hash)}</span></td>
-            <td><Link to="/blocks" className="num-link">#{Number(tx.block_number).toLocaleString()}</Link></td>
+            <td style={{fontSize:11}}><Link to={`/tx/${tx.hash}`} className="hash-link"><span className="hash-cell">{shortHash(tx.hash)}</span></Link></td>
+            <td><Link to={`/blocks/${tx.block_number}`} className="num-link">#{Number(tx.block_number).toLocaleString()}</Link></td>
             <td>
               <Link to={'/address/' + tx.from_address} className="addr-link">
                 <span className="addr-cell">{shortAddr(tx.from_address)}</span>

@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import Home from './pages/Home';
 import Blocks from './pages/Blocks';
+import BlockDetail from './pages/BlockDetail';
+import TxDetail    from './pages/TxDetail';
 import Transactions from './pages/Transactions';
 import Address from './pages/Address';
 import { useWS } from './context/WSContext';
@@ -88,10 +90,12 @@ export default function App() {
       <main className="main-content">
         <div className="container">
           <Routes>
-            <Route path="/"                 element={<Home />} />
-            <Route path="/blocks"           element={<Blocks />} />
-            <Route path="/transactions"     element={<Transactions />} />
-            <Route path="/address/:address" element={<Address />} />
+            <Route path="/"                    element={<Home />} />
+            <Route path="/blocks"              element={<Blocks />} />
+            <Route path="/blocks/:number"      element={<BlockDetail />} />
+            <Route path="/transactions"        element={<Transactions />} />
+            <Route path="/tx/:hash"            element={<TxDetail />} />
+            <Route path="/address/:address"    element={<Address />} />
           </Routes>
         </div>
       </main>

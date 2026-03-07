@@ -37,7 +37,8 @@ export default function transactionsRouter(dbPool) {
 
       // Get logs for this transaction
       const logsResult = await dbPool.query(`
-        SELECT log_index, address, data FROM logs
+        SELECT log_index, address, topics, data
+        FROM logs
         WHERE transaction_hash = $1
         ORDER BY log_index ASC
       `, [hash]);
