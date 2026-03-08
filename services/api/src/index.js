@@ -223,6 +223,14 @@ class API {
 
     loop().catch((err) => logger.error('Stream listener fatal:', err.message));
     logger.info('Stream listener started (broadcasting blocks + txs to WS clients)');
+
+    // Periodic stats heartbeat — updates the metrics bar even when no new blocks arrive
+    setInterval(async () => {
+      try {
+        const stats = await this.getStats();
+        this.broadcast({ type: 'stats', data: stats });
+      } catch {}
+    }, 5000);
   }
 
   async getStats() {

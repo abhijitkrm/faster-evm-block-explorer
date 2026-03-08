@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 
-const WS_URL = (import.meta.env.VITE_API_URL || 'http://localhost:4000').replace(/^http/, 'ws');
+const WS_URL  = (import.meta.env.VITE_API_URL || 'http://localhost:4000').replace(/^http/, 'ws');
+const API_URL  = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 const MAX_BLOCKS = 50;
 const MAX_TXS    = 20;
 
@@ -17,7 +18,18 @@ export function WSProvider({ children }) {
 
   useEffect(() => {
     connect();
+
+    // Fallback: poll /stats every 5 s so metrics never go stale
+    // (covers the case where no new blocks arrive to trigger a WS stats push)
+    const pollId = setInterval(async () => {
+      try {
+        const r = await fetch(`${API_URL}/stats`);
+        if (r.ok) setStats(await r.json());
+      } catch {}
+    }, 5000);
+
     return () => {
+      clearInterval(pollId);
       if (wsRef.current) wsRef.current.close();
     };
   }, []);

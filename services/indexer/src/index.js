@@ -42,6 +42,18 @@ class Indexer {
       client.release();
       logger.info('Database connected');
 
+      // Restore persisted stream positions (survive restarts/rebuilds)
+      const savedBlockId = await this.redisClient.get('indexer:lastBlockId');
+      const savedTxId    = await this.redisClient.get('indexer:lastTxId');
+      if (savedBlockId) {
+        this.lastBlockId = savedBlockId;
+        logger.info(`Resuming block stream from ${savedBlockId}`);
+      }
+      if (savedTxId) {
+        this.lastTxId = savedTxId;
+        logger.info(`Resuming tx stream from ${savedTxId}`);
+      }
+
       this.isRunning = true;
     } catch (error) {
       logger.error('Initialization error:', error);
@@ -113,6 +125,8 @@ class Indexer {
         }
 
         await client.query('COMMIT');
+        // Persist position so a restart resumes from here instead of 0-0
+        await this.redisClient.set('indexer:lastBlockId', this.lastBlockId);
         logger.info(`Indexed ${blocks.length} blocks`);
       } catch (error) {
         await client.query('ROLLBACK');
@@ -164,9 +178,12 @@ class Indexer {
             await client.query(
               `INSERT INTO transactions (
                 hash, block_number, block_hash, from_address, to_address,
-                value, gas, gas_price, gas_used, status, input_data, nonce
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-              ON CONFLICT (hash) DO NOTHING`,
+                value, gas, gas_price, gas_used, status, input_data, nonce,
+                contract_address
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+              ON CONFLICT (hash) DO UPDATE SET
+                contract_address = EXCLUDED.contract_address
+              WHERE transactions.contract_address IS NULL`,
               [
                 tx.hash,
                 tx.blockNumber,
@@ -180,6 +197,7 @@ class Indexer {
                 tx.status,
                 tx.input,
                 tx.nonce,
+                tx.contractAddress || null,
               ]
             );
 
@@ -226,6 +244,8 @@ class Indexer {
         }
 
         await client.query('COMMIT');
+        // Persist position so a restart resumes from here instead of 0-0
+        await this.redisClient.set('indexer:lastTxId', this.lastTxId);
         logger.info(`Indexed ${transactions.length} transactions`);
       } catch (error) {
         await client.query('ROLLBACK');

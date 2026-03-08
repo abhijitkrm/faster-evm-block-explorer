@@ -5,24 +5,48 @@ Format: **[date] — type: description**
 
 ---
 
+## [2026-03-08]
+
+### Fixed
+- **Indexer stream position not persisted** — after every Docker rebuild the indexer reset `lastBlockId` to `'0-0'` and replayed the entire Redis stream from the beginning (~225 k entries). On a ~400 ms block chain the stream grows fast; full re-scan took ~37 minutes, making the DB appear permanently stuck.
+  - **Fix**: `lastBlockId` and `lastTxId` are now saved to Redis keys `indexer:lastBlockId` / `indexer:lastTxId` after every committed batch and loaded back on startup — restarts resume in milliseconds.
+  - One-time pre-seed of both keys to the correct stream positions was applied before rebuild so the existing backlog was skipped immediately.
+  - Verified: DB block height advanced from 1 665 218 → 1 678 881 in under 30 seconds after rebuild.
+
+### Added
+- **Full bytecode display on contract pages** — `BytecodeBlock` component in `Address.jsx` renders contract bytecode as 32-byte rows with hex offset counters, alternating byte highlighting, scrollable pre (max 320 px), and a one-click copy button.
+- **Stats heartbeat in API** — `setInterval(5000)` in `api/src/index.js` broadcasts a `stats` WebSocket message unconditionally every 5 s so clients always get fresh metrics even during low-block-activity periods.
+- **REST fallback poll in WSContext** — if the WebSocket stats message hasn't arrived, the frontend polls `GET /stats` every 5 s via `setInterval` as a fallback, ensuring the metrics bar never goes blank.
+
+---
+
 ## [2026-03-07]
+
+### Added
+- **Contract-aware address page** — address page now auto-detects whether an address is a contract via `eth_getCode` RPC call:
+  - **EOA**: blue "EOA" badge, First Seen stat card, normal transaction history
+  - **Contract**: purple "Contract" badge, Bytecode Size stat card (in bytes), "Contract Info" panel with creator address link, deploy transaction link, and deploy block link + timestamp
+  - Transaction direction now also shows **CREATE** (purple) and **SELF** (yellow) badges in addition to IN/OUT
+  - "Transaction History" renamed to "Contract Interactions" for contracts
+  - `to_address = null` rows show "Contract Create" instead of a broken link
+- **`eth_getCode` in API** — `addresses.js` now calls `eth_getCode` in parallel with balance fetch to determine `is_contract` and `bytecode_size` from live RPC; overrides stale DB flag
+- **Deploy info query** — API finds the earliest transaction directed at a contract address to surface creator + deploy tx + deploy block
 
 ### Fixed
 - **Block list out-of-order display** — blocks arriving out of order over WebSocket (due to parallel 50-block batch fetching) were naively prepended, causing e.g. block 115 to appear above 112. WSContext now deduplicates by hash and sorts descending by block number on every `block` event and on `init`.
 - **Block list ordering on init** — initial payload from the API was not sorted; now sorted descending by `number` before storing in state.
 
-### Added
+### Added (earlier today)
 - **Search bar** — global search in the header auto-detects input type and redirects:
   - `0x` + 40 hex chars → `/address/:address`
   - `0x` + 64 hex chars → probes tx hash first, falls back to block hash
   - Pure integer → `/blocks/:number`
   - Shows live type badge (Address / Tx+Block hash / Block #) as you type
   - Spinner during API probe, inline error on not-found
-
-### Improved
 - **Smooth metric counters** — header stats bar now animates instead of jumping:
   - Block Height & Total Blocks use `useCountUp` (steps ±1 per tick at ~25 steps/sec, snaps if gap > 50)
   - TPS & Avg Block Time use `useLerp` (exponential ease, 10% per frame)
+
 
 ---
 
