@@ -1,6 +1,6 @@
 # Faster — Real-Time EVM Block Explorer
 
-A high-performance, real-time EVM block explorer built with Docker. Designed for high-throughput chains with sub-second block times — streams blocks and transactions live to the browser via WebSocket with no page refresh required.
+A high-performance, real-time EVM block explorer built on Docker using JS. Designed for high-throughput chains with sub-second block times — streams blocks and transactions live to the browser via WebSocket with no page refresh required.
 
 > Works with any EVM-compatible chain (Ethereum, L2s, custom EVM L1s). Tested at 400ms block times with 50+ transactions per block.
 
